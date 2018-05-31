@@ -1,0 +1,71 @@
+Warning: No display specified.  You will not be able to display graphics on the screen.
+
+======================================
+  MutSigCV
+  v1.3
+
+  (c) Mike Lawrence and Gaddy Getz
+  Broad Institute of MIT and Harvard
+======================================
+
+
+MutSigCV: PREPROCESS
+--------------------
+Loading mutation_file...
+Loading coverage file...
+Processing mutation "effect"...
+WARNING:  9950/612372 mutations could not be mapped to effect using mutation_type_dictionary_file:
+
+    Start_Codon_SNP: [158]
+            lincRNA: [9792]
+          ----TOTAL: [9950]
+          They will be removed from the analysis.
+Processing mutation "categ"...
+WARNING:  19887/602422 mutations are on chromosomes not found in chr_files_directory.  Excluding them from analysis.
+Preparing for category discovery...
+Looking up trinucleotide contexts from chr_files...
+ 1/23 2/23 3/23 4/23 5/23 6/23 7/23 8/23 9/23 10/23 11/23 12/23 13/23 14/23 15/23 16/23 17/23 18/23 19/23 20/23 21/23 22/23 23/23
+k=1
+                      mut   n 516504 N 134811417312  rate 3.83e-06 (01x)
+
+k=2
+                  transit   n 313323 N 44937139104  rate 6.97e-06 (1.820x)
+                 transver   n 203181 N 89874278208  rate 2.26e-06 (0.590x)
+
+k=3
+                     C->T   n 225795 N 23471217252  rate 9.62e-06 (2.511x)
+                     A->G   n 87528 N 21465921852  rate 4.08e-06 (1.064x)
+                 transver   n 203181 N 89874278208  rate 2.26e-06 (0.590x)
+
+k=4
+                  *CpG->T   n 72301 N 2881080342  rate 2.51e-05 (6.550x)
+            *Cp(A/C/T)->T   n 153494 N 20590136910  rate 7.45e-06 (1.946x)
+                     A->G   n 87528 N 21465921852  rate 4.08e-06 (1.064x)
+                 transver   n 203181 N 89874278208  rate 2.26e-06 (0.590x)
+
+Assigning mutation categories...
+Collapsing coverage...
+Writing preprocessed files.
+HUGE STRUCT: SAVING CHUNK 1/2
+  [save_struct] 7/21 8/21 9/21 10/21 11/21 12/21 13/21 14/21 15/21 16/21 17/21 18/21 19/21 20/21 21/21  [collapse]
+HUGE STRUCT: SAVING CHUNK 2/2
+MutSig_preprocess finished.
+
+
+MutSigCV: RUN
+-------------
+Loading mutation_file...
+NOTE:  Both "gene" and "Hugo_Symbol" are present in mutation_file.  Using "gene".
+NOTE:  Both "patient" and "Tumor_Sample_Barcode" are present in mutation_file.  Using "patient".
+Loading coverage file...
+Loading covariate file...
+NOTE:  4012/20483 gene names could not be mapped to coverage information.  Excluding them.
+NOTE:  25852/451871 mutations were outside the category set.  Excluding them.
+Building n and N tables...
+WARNING:  coding and noncoding rates are too different
+Zeroing out all noncoding mutations and coverage for the rest of the calculation.
+Processing covariates...
+Finding bagels...  1000/18862 2000/18862 3000/18862 4000/18862 5000/18862 6000/18862 7000/18862 8000/18862 9000/18862 10000/18862 11000/18862 12000/18862 13000/18862 14000/18862 15000/18862 16000/18862 17000/18862 18000/18862 
+Expanding to (x,X)_gcp...
+Calculating p-value using 2D Projection method...  1000/18862 2000/18862 3000/18862 4000/18862 5000/18862 6000/18862 7000/18862 8000/18862 9000/18862 10000/18862 11000/18862 12000/18862 13000/18862 14000/18862 15000/18862 16000/18862 17000/18862 18000/18862 
+Done.  Wrote results to mutsiginput.sig_genes.txt

@@ -1,0 +1,147 @@
+---
+title: "Subclustering 2plus7"
+author: "Cody Ashby"
+date: "8/25/2017"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(pheatmap)
+library(cluster)
+library(fpc)
+library(factoextra)
+library(sigclust)
+library(plyr)
+library(pbmcapply)
+```
+
+The purpose of this document is to show the subclustering strategy. The idea is that the classical HRD (HRD) samples overshadow the other (nHRD) samples and cause us to miss interesting features that would otherwise be hidden in the data.
+
+```{r init}
+#read in file with the copy number data for the 29 features
+all.dat = read.table("copy_table_29features.txt", header=T, sep="\t", stringsAsFactors = F, row.names=1)
+#count loss of heterozygosity as a deletion
+all.dat[all.dat == -2] = 1
+#spread values for more distinctness between del/gain and normal
+all.dat[all.dat == 1] = 0.5
+all.dat[all.dat == 3] = 3.5
+all.dat.unscaled = all.dat
+#scale and center data
+all.dat <- scale(all.dat,center = T,scale = T)
+#colors
+mycolors = rev(c("#7E0000","#d5322f", "#bdbdbd", "#377eb8", "#001852"))
+```
+
+We're going to determine the optimal number of clusters in the data using sigclust.
+
+```{r sigclust_init}
+#writing this to run in parallel
+iterate_sigclust_sub = function(i, j, x, cluster, nsim=1000)
+{
+  if(i != j)
+  {
+    subcluster = x[rownames(x) %in% names(cluster$cluster[cluster$cluster %in% c(i,j)]),]
+    cluster_labels = mapvalues(cluster$cluster[cluster$cluster %in% c(i,j)], from = c(i,j), to = c(1,2))
+    set.seed(1)
+    pvalue <- sigclust(subcluster, nsim=nsim, nrep = 1, labflag = 1, label = cluster_labels, icovest = 2)
+    results = pvalue@pval
+  }
+  else
+  {
+    results = 1
+  }
+  results
+}
+
+iterate_sigclust = function(x, cluster, nsim=1000)
+{
+  cluster_num = max(cluster$cluster)
+  vec_i = c()
+  vec_j = c()
+  for(i in 1:cluster_num)
+  {
+    for(j in 1:cluster_num)
+    {
+      vec_i = c(vec_i,i)
+      vec_j = c(vec_j,j)
+    }
+  }
+  results = pbmcmapply(vec_i, FUN=iterate_sigclust_sub, mc.cores = 8, MoreArgs = list(x=x, cluster=cluster, nsim=nsim), j=vec_j)
+  matrix(results, nrow=cluster_num, ncol=cluster_num)
+}
+
+#run for k = 2
+set.seed(1)
+all.dat.cluster = kmeans(all.dat, 2, nstart = 30, iter.max = 1000)
+iterate_sigclust(all.dat, all.dat.cluster)
+```
+
+From this, we will initially Cluster the data using kmeans (k = 2).
+```{r initial_cluster}
+set.seed(1)
+all.dat.cluster = kmeans(all.dat, 2, nstart = 30, iter.max = 2000)
+all.dat.cluster.order = names(all.dat.cluster$cluster[order(all.dat.cluster$cluster)])
+pheatmap(all.dat.unscaled[match(all.dat.cluster.order, rownames(all.dat)),], cluster_rows = F, cluster_cols = F, labels_row = "", color=mycolors)
+#in this case cluster 1 is the HRD and cluster 2 is the nHRD
+all.dat.hrd = all.dat[match(names(all.dat.cluster$cluster[all.dat.cluster$cluster == 1]), rownames(all.dat)),]
+all.dat.nhrd = all.dat[match(names(all.dat.cluster$cluster[all.dat.cluster$cluster == 2]), rownames(all.dat)),]
+```
+
+Next, we're going to determine the optimal number of clusters using sigclust. We test all clusters from 2-10 in the HRD and nHRD set and take the largest cluster where all clusters are significant. (Note: I've updated this document for where the clusters fail: HRD(2-3), nHRD(2-8))
+
+```{r subcluster}
+#check for significance
+for(i in 2:3)
+{
+  set.seed(1)
+  all.dat.hrd.cluster = kmeans(all.dat.hrd, i, nstart = 30, iter.max = 2000)
+  r = iterate_sigclust(all.dat.hrd, all.dat.hrd.cluster, 1000)
+  r = sum(r > 0.05) - i
+  print(paste("With k = ", i," : ",r, sep=""))
+}
+#check for significance
+for(i in 2:8)
+{
+  set.seed(1)
+  all.dat.nhrd.cluster = kmeans(all.dat.nhrd, i, nstart = 30, iter.max = 2000)
+  r = iterate_sigclust(all.dat.nhrd, all.dat.nhrd.cluster, 1000)
+  r = sum(r > 0.05) - i
+  print(paste("With k = ", i," : ",r, sep=""))
+}
+
+```
+
+```{r use_optimum}
+set.seed(1)
+all.dat.hrd.cluster = kmeans(all.dat.hrd, 2, nstart = 30, iter.max = 2000)
+set.seed(1)
+all.dat.nhrd.cluster = kmeans(all.dat.nhrd, 7, nstart = 30, iter.max = 2000)
+```
+
+```{r check_combined}
+all.dat.subcluster = all.dat.nhrd.cluster$cluster
+all.dat.subcluster = mapvalues(all.dat.subcluster, 1:7, 3:9)
+all.dat.subcluster = c(all.dat.subcluster, all.dat.hrd.cluster$cluster)
+all.dat.subcluster = as.data.frame(all.dat.subcluster)
+colnames(all.dat.subcluster) = "clustering"
+test = list(clustering = all.dat.subcluster$clustering)
+names(test$clustering) = rownames(all.dat.subcluster)
+all.dat.subcluster = test
+iterate_sigclust(all.dat, all.dat.subcluster)
+```
+
+The subclusters from the HRD are **not** significantly different than the subclusters from the nHRD group. This is exactly the situation we were trying to avoid by clustering them seperately, so this makes sense. Finally, let's combine everything and output the final cluster groups.
+
+```{r combine}
+z = all.dat.unscaled
+z[z==0.5] = 1
+z[z==3.5] = 3
+mygaps = cumsum(table(all.dat.subcluster$clustering))
+pheatmap(z[match(names(test$clustering[order(all.dat.subcluster$clustering)]), rownames(z)),], cluster_rows = F, cluster_cols = F, labels_row = rep("",nrow(all.dat)), color=mycolors, gaps_row = mygaps)
+```
+
+
